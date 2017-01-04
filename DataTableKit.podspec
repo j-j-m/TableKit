@@ -4,7 +4,7 @@ Pod::Spec.new do |s|
 
     s.version               = '1.2.0'
 
-    s.homepage              = 'https://github.com/j-j-m/TableKit.git'
+    s.homepage              = 'https://github.com/j-j-m/TableKit'
     s.summary               = 'Core Data enabled, Type-safe declarative table views. Swift 2.2 is required.'
 
     s.author                = { 'JJ Martin' => 'martinjaco@gmail.com' }
