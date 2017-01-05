@@ -7,11 +7,11 @@
 //
 
 import UIKit
-import AWSCore
-import APIModule
-import BaseModule
-import SkeletonModule
-import GraphicsModule
+//import AWSCore
+//import APIModule
+//import BaseModule
+//import SkeletonModule
+//import GraphicsModule
 import CoreData
 
 
@@ -24,8 +24,10 @@ import CoreData
  */
 
 /// Protocol for to assure models can be used with this tabledirector and generate their own row models
+
+
 public protocol DataTableDirectorConforming {
-    func row(_ type:String) -> (action: VoidFunc) -> Row
+    func row(_ type:String) -> (action: () -> ()) -> Row
 }
 
 
@@ -46,9 +48,11 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
     
     public var dataSectionHeader: UIView?
     public var dataSectionHeaderTitle: String?
+    public var dataSectionHeaderHeight: CGFloat? = 0
     
     public var dataSectionFooter: UIView?
     public var dataSectionFooterTitle: String?
+    public var dataSectionFooterHeight: CGFloat? = 0
     
     var sectionsBefore:[TableSection]?
     var sectionsAfter:[TableSection]?
@@ -58,7 +62,7 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
     
     
     //set a default prototype action
-    var protoTypeAction:(T) -> VoidFunc = { frame in
+    var protoTypeAction:(T) -> () -> () = { frame in
         
         return { _ in
             //print(frame.email!)
@@ -97,13 +101,20 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
         }
     }
     
-    public  var predicate : NSPredicate?
-    public var predicateChangeCompletion: VoidFunc?
     
-    func refreshPredicate(predicate:NSPredicate, completion:VoidFunc){
+    public  var predicate : NSPredicate?
+    public var predicateChangeCompletion: (() -> ())?
+    
+    func refreshPredicate(predicate:NSPredicate, completion:(() -> ())?){
         fetchedResultsController?.fetchRequest.predicate = predicate
         print(fetchedResultsController?.fetchRequest.predicate)
         print(predicate)
+        
+        refreshFetchedResults(completion)
+
+    }
+    
+    func refreshFetchedResults(completion: (() -> ())? = nil){
         weak var weakSelf = self
         if let c = weakSelf!.fetchedResultsController {
             c.delegate = self
@@ -114,14 +125,13 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
                 weakSelf?.reload()
                 predicateChangeCompletion = { _ in
                     weakSelf?.reload()
-                    completion()
+                    completion?()
                 }
                 
             } catch {
                 print("An error occurred")
             }
         }
-
     }
     
     
@@ -156,9 +166,9 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
     }
     
     public init(tableView: UITableView,
-                fetchedResultsTask: AWSTask,
+                fetchedResultsController: NSFetchedResultsController,
                 rowType:String = "",
-                prototypeAction:((T) -> VoidFunc)? = nil,
+                prototypeAction:((T) -> () -> ())? = nil,
                 sectionsBefore:[TableSection]? = nil,
                 sectionsAfter:[TableSection]? = nil,
         scrollDelegate: UIScrollViewDelegate? = nil,
@@ -203,22 +213,9 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
         
         NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(didReceiveAction), name: TableKitNotifications.CellAction, object: nil)
         
-        weak var weakSelf = self
-        fetchedResultsTask.continueWithExecutor(AWSExecutor.mainThreadExecutor(), withBlock: { (task) -> AnyObject? in
-            if let e = task.error {
-                print ("ERROR: "+e.localizedDescription)
-            } else {
-                let controller = task.result as! NSFetchedResultsController
-                if let s = weakSelf {
-                    //s.loading = false
-                    // setting the controller performs the fetch and reloads the table.
-                    s.fetchedResultsController = controller
-                    self.reload()
-                }
-            }
-            
-            return nil
-        })
+        self.fetchedResultsController = fetchedResultsController
+        refreshFetchedResults()
+    
 
     }
     
@@ -393,7 +390,7 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
     public func tableView(tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
     
         if(section == dataSectionIndex){
-            return 20
+            return dataSectionHeader?.bounds.size.height ??  dataSectionHeaderHeight ?? 0
         }
         let s = getSectionAtIndex(section)
         return s.headerHeight ?? s.headerView?.frame.size.height ?? 0
@@ -402,7 +399,7 @@ public class FetchedResultTableDirector<T:DataTableDirectorConforming>: NSObject
     public func tableView(tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
         
         if(section == dataSectionIndex){
-            return 0
+            return dataSectionFooter?.bounds.size.height ??  dataSectionFooterHeight ?? 0
         }
         let s = getSectionAtIndex(section)
         return s.footerHeight ?? s.footerView?.frame.size.height ?? 0
